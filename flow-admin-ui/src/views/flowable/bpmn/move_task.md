@@ -8,7 +8,7 @@
 - 分类筛选通过 `handleSelect` 与 `reload({ searchInfo })` 联动；迁移到新前端时需保留该筛选参数以兼容现有查询接口。【F:flow-admin-ui/src/views/flowable/bpmn/modelInfo/index.vue†L205-L236】
 
 ### 1.2 流程设计入口
-- `/flowable/bpmn/designer/index.vue` 仅负责生成嵌入式 `FramePage`，在开发模式下指向 `/flow-bpmn-front/index.html/#/bpmn/designer?modelId=...`，生产模式指向 `/flow-bpmn/index.html` 构建产物；迁移时需要同步更新 iframe 目标地址及缓存逻辑（`useFrameKeepAlive`）。其中 `flow-bpmn-front` 对应本仓库 `public/flow-bpmn-front` 目录内的调试版静态资源，方便 `pnpm dev` 时直接从 Vite 静态目录读取；`flow-bpmn` 则对应后端 `flow-admin` 工程内 `/static/flow-bpmn` 的发布版资源，生产打包时会随后端一起部署。【F:flow-admin-ui/src/views/flowable/bpmn/designer/index.vue†L1-L49】【F:flow-admin-ui/public/flow-bpmn-front/index.html†L1-L24】【F:flow-admin/src/main/resources/static/flow-bpmn/index.html†L1-L24】
+- `/flowable/bpmn/designer/index.vue` 仅负责生成嵌入式 `FramePage`，在开发模式下指向 `/flow-bpmn-front/index.html/#/bpmn/designer?modelId=...`，生产模式指向 `/flow-bpmn/index.html` 构建产物；迁移时需要同步更新 iframe 目标地址及缓存逻辑（`useFrameKeepAlive`）。其中 `flow-bpmn-front` 对应本仓库 `public/flow-bpmn-front` 目录内的调试版静态资源，方便 `pnpm dev` 时直接从 Vite 静态目录读取；`flow-bpmn` 则对应后端 `flow-admin` 工程内 `/static/flow-bpmn` 的发布版资源，生产打包时会随后端一起部署。虽然两个目录下的 `js/app.js`、`js/chunk-vendors.js` 是 webpack 打包后的结果，但仍可通过替换这些静态文件来自定义：开发态在 `flow-admin-ui/public/flow-bpmn-front` 下覆盖，生产态需把同一套构建产物同步到 `flow-admin/src/main/resources/static/flow-bpmn`。【F:flow-admin-ui/src/views/flowable/bpmn/designer/index.vue†L1-L49】【F:flow-admin-ui/public/flow-bpmn-front/index.html†L1-L24】【F:flow-admin-ui/public/flow-bpmn/index.html†L1-L24】【F:flow-admin/src/main/resources/static/flow-bpmn/index.html†L1-L24】【F:flow-admin/src/main/resources/static/flow-bpmn-front/index.html†L1-L24】
 
 ### 1.3 模型弹窗 `ModelInfoModal`
 - 弹窗顶部使用 `RadioGroup` 在“表单设计 / 流程设计 / 扩展设置”之间切换，并分别加载 `formDesignerUrl` 与 `flowDesignerUrl` 的 iframe；迁移时需保证新的设计器同样暴露 `FramePage` 兼容的入口。【F:flow-admin-ui/src/views/flowable/bpmn/modelInfo/ModelInfoModal.vue†L1-L35】【F:flow-admin-ui/src/views/flowable/bpmn/modelInfo/ModelInfoModal.vue†L236-L249】
@@ -50,6 +50,12 @@
 - **扩展属性列表** (`element-properties`)：提供扩展属性的增删改 UI，与流程变量、业务键关联。
 - **边界事件 / 中间捕获事件** (`element-boundary-info`, `intermediate-catch-event`)：根据事件类型展示定时器、条件、错误等字段并通过 `updateExtensionElement` 写入 BPMN 模型。【F:flow-admin-ui/public/flow-bpmn-front/js/app.js†L190-L238】【F:flow-admin-ui/public/flow-bpmn-front/js/app.js†L633-L684】
 - **描述信息** (`element-other-config`)：承载节点备注、帮助文本等元信息。
+
+### 3.5 获取并覆盖属性面板源码
+- `my-properties-panel` 实际对应 `package/refactor/PropertiesPanel.vue`，其脚本在打包产物内完整保留了对各子面板的引用（`ElementBaseInfo`、`CustomApproveSetting`、`ElementBoundaryInfo` 等），只是被 webpack 包装成 `eval` 语句并写入单个 `app.js`。【F:flow-admin/src/main/resources/static/flow-bpmn-front/js/app.js†L170-L332】
+- 模板也随同保留在同一 bundle 中，第 633 行附近可以看到 `el-collapse-item` 组合出“自由审批配置”“监听器”“描述信息”等折叠面板，因此运行时依旧渲染出和源码一致的 DOM；如在应用中看不到该面板，多半是因为外层 `BpmnDesigner` 关闭了 `showDesigner` 或缓存的旧 iframe 未更新，需要在父级重新触发 `reloadIndex` 或清空 `useFrameKeepAlive` 的缓存。【F:flow-admin/src/main/resources/static/flow-bpmn-front/js/app.js†L625-L684】【F:flow-admin/src/main/resources/static/flow-bpmn-front/js/app.js†L1061-L1077】
+- 如果要定制属性面板，不建议直接在压缩后的字符串中硬改；可以把 `app.js` 中 `PropertiesPanel.vue` 对应的 `eval("...\nexport default {...}")` 片段拷贝到一个新的 Vue SFC，修正 `import` 路径（例如参照 `package/refactor` 目录结构），然后使用 `vue-cli-service build` 或 `vite build` 重新生成 `app.js`/`chunk-vendors.js` 并覆盖到 `public/flow-bpmn-front/js` 与后端 `static/flow-bpmn/js`，从而一次性替换整个面板实现。【F:flow-admin/src/main/resources/static/flow-bpmn-front/js/app.js†L170-L684】
+- 若短期内无法还原原始工程，也可以在 `PropertiesPanel.vue` 的模块字符串中搜索关键词（如“自由审批配置”），定位到需要调整的模板或逻辑片段，再配合 `flow-admin-ui/public/flow-bpmn-front/index.html` 手动替换静态资源；只是要注意替换后需同步更新开发态和生产态目录，避免 iframe 仍引用旧缓存。【F:flow-admin-ui/public/flow-bpmn-front/index.html†L13-L22】【F:flow-admin/src/main/resources/static/flow-bpmn-front/index.html†L13-L22】
 
 ## 4. 迁移步骤建议
 1. **拆分仓库结构**：将旧的 `/public/flow-bpmn-front` 构建产物替换为新设计器资源，同时保证 `ModelInfoModal`/`designer/index.vue` 的 iframe 路径指向新资源，并在 `import.meta.env.DEV` 条件下配置本地调试地址。【F:flow-admin-ui/src/views/flowable/bpmn/designer/index.vue†L31-L48】
