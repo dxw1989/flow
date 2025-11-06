@@ -8,7 +8,7 @@
 - 分类筛选通过 `handleSelect` 与 `reload({ searchInfo })` 联动；迁移到新前端时需保留该筛选参数以兼容现有查询接口。【F:flow-admin-ui/src/views/flowable/bpmn/modelInfo/index.vue†L205-L236】
 
 ### 1.2 流程设计入口
-- `/flowable/bpmn/designer/index.vue` 仅负责生成嵌入式 `FramePage`，在开发模式下指向 `/flow-bpmn-front/index.html/#/bpmn/designer?modelId=...`，生产模式指向 `/flow-bpmn/index.html` 构建产物；迁移时需要同步更新 iframe 目标地址及缓存逻辑（`useFrameKeepAlive`）。【F:flow-admin-ui/src/views/flowable/bpmn/designer/index.vue†L1-L49】
+- `/flowable/bpmn/designer/index.vue` 仅负责生成嵌入式 `FramePage`，在开发模式下指向 `/flow-bpmn-front/index.html/#/bpmn/designer?modelId=...`，生产模式指向 `/flow-bpmn/index.html` 构建产物；迁移时需要同步更新 iframe 目标地址及缓存逻辑（`useFrameKeepAlive`）。其中 `flow-bpmn-front` 对应本仓库 `public/flow-bpmn-front` 目录内的调试版静态资源，方便 `pnpm dev` 时直接从 Vite 静态目录读取；`flow-bpmn` 则对应后端 `flow-admin` 工程内 `/static/flow-bpmn` 的发布版资源，生产打包时会随后端一起部署。【F:flow-admin-ui/src/views/flowable/bpmn/designer/index.vue†L1-L49】【F:flow-admin-ui/public/flow-bpmn-front/index.html†L1-L24】【F:flow-admin/src/main/resources/static/flow-bpmn/index.html†L1-L24】
 
 ### 1.3 模型弹窗 `ModelInfoModal`
 - 弹窗顶部使用 `RadioGroup` 在“表单设计 / 流程设计 / 扩展设置”之间切换，并分别加载 `formDesignerUrl` 与 `flowDesignerUrl` 的 iframe；迁移时需保证新的设计器同样暴露 `FramePage` 兼容的入口。【F:flow-admin-ui/src/views/flowable/bpmn/modelInfo/ModelInfoModal.vue†L1-L35】【F:flow-admin-ui/src/views/flowable/bpmn/modelInfo/ModelInfoModal.vue†L236-L249】
